@@ -14,10 +14,10 @@ func clearEnv(t *testing.T, keys ...string) {
 	t.Helper()
 	for _, k := range keys {
 		old := os.Getenv(k)
-		os.Unsetenv(k)
+		_ = os.Unsetenv(k)
 		t.Cleanup(func() {
 			if old != "" {
-				os.Setenv(k, old)
+				_ = os.Setenv(k, old)
 			}
 		})
 	}

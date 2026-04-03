@@ -270,8 +270,8 @@ func (b *Bot) handleAdvise(userID string) *discordgo.InteractionResponse {
 
 	var sb strings.Builder
 	for i, action := range plan {
-		sb.WriteString(fmt.Sprintf("**%d.** `[%s]` **%s** (priority %d)\n", i+1, action.Category, action.Name, action.Priority))
-		sb.WriteString(fmt.Sprintf("   %s\n\n", action.Description))
+		fmt.Fprintf(&sb, "**%d.** `[%s]` **%s** (priority %d)\n", i+1, action.Category, action.Name, action.Priority)
+		fmt.Fprintf(&sb, "   %s\n\n", action.Description)
 	}
 
 	return embedResponse("Torn Advisor — Action Plan", sb.String(), 0x3498DB)
@@ -314,15 +314,15 @@ func (b *Bot) handleStatus(userID string) *discordgo.InteractionResponse {
 func (b *Bot) handleConfig() *discordgo.InteractionResponse {
 	cfg := b.cfg
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Hospital: **%d**\n", cfg.Hospital))
-	sb.WriteString(fmt.Sprintf("Chain: **%d**\n", cfg.Chain))
-	sb.WriteString(fmt.Sprintf("War: **%d**\n", cfg.War))
-	sb.WriteString(fmt.Sprintf("Xanax: **%d**\n", cfg.Xanax))
-	sb.WriteString(fmt.Sprintf("Rehab: **%d**\n", cfg.Rehab))
-	sb.WriteString(fmt.Sprintf("Gym: **%d**\n", cfg.Gym))
-	sb.WriteString(fmt.Sprintf("Crime: **%d**\n", cfg.Crime))
-	sb.WriteString(fmt.Sprintf("Travel: **%d**\n", cfg.Travel))
-	sb.WriteString(fmt.Sprintf("Booster: **%d**\n", cfg.Booster))
+	fmt.Fprintf(&sb, "Hospital: **%d**\n", cfg.Hospital)
+	fmt.Fprintf(&sb, "Chain: **%d**\n", cfg.Chain)
+	fmt.Fprintf(&sb, "War: **%d**\n", cfg.War)
+	fmt.Fprintf(&sb, "Xanax: **%d**\n", cfg.Xanax)
+	fmt.Fprintf(&sb, "Rehab: **%d**\n", cfg.Rehab)
+	fmt.Fprintf(&sb, "Gym: **%d**\n", cfg.Gym)
+	fmt.Fprintf(&sb, "Crime: **%d**\n", cfg.Crime)
+	fmt.Fprintf(&sb, "Travel: **%d**\n", cfg.Travel)
+	fmt.Fprintf(&sb, "Booster: **%d**\n", cfg.Booster)
 
 	return embedResponse("Rule Priorities", sb.String(), 0x9B59B6)
 }
@@ -438,8 +438,8 @@ func (b *Bot) sendScheduledAdvice(userID, channelID string) {
 
 	var sb strings.Builder
 	for i, action := range urgent {
-		sb.WriteString(fmt.Sprintf("**%d.** `[%s]` **%s** (priority %d)\n", i+1, action.Category, action.Name, action.Priority))
-		sb.WriteString(fmt.Sprintf("   %s\n\n", action.Description))
+		fmt.Fprintf(&sb, "**%d.** `[%s]` **%s** (priority %d)\n", i+1, action.Category, action.Name, action.Priority)
+		fmt.Fprintf(&sb, "   %s\n\n", action.Description)
 	}
 
 	embed := &discordgo.MessageEmbed{

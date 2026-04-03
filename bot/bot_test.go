@@ -767,7 +767,7 @@ func TestStartScheduler(t *testing.T) {
 
 	b.StartScheduler(50 * time.Millisecond)
 	time.Sleep(120 * time.Millisecond)
-	b.Stop()
+	_ = b.Stop()
 
 	if len(s.embeds) == 0 {
 		t.Error("expected at least one scheduled embed")
@@ -914,13 +914,17 @@ func newTestBotWithBadStore(t *testing.T) *Bot {
 	dir := t.TempDir()
 	ksPath := filepath.Join(dir, "sub", "keys.json")
 	// Create the subdir so NewKeyStore succeeds.
-	os.MkdirAll(filepath.Join(dir, "sub"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0755); err != nil {
+		t.Fatalf("creating subdir: %v", err)
+	}
 	ks, err := store.NewKeyStore(ksPath, testEncKey())
 	if err != nil {
 		t.Fatalf("creating keystore: %v", err)
 	}
 	// Remove the directory so writes will fail.
-	os.RemoveAll(filepath.Join(dir, "sub"))
+	if err := os.RemoveAll(filepath.Join(dir, "sub")); err != nil {
+		t.Fatalf("removing subdir: %v", err)
+	}
 	factory := func(_ string) domain.StateProvider { return &mockProvider{} }
 	return New(&mockSession{}, ks, factory, config.DefaultPriorities(), 30*time.Second)
 }

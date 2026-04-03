@@ -93,14 +93,14 @@ func run() error {
 
 // startAndServe runs the HTTP server and shuts it down when ctx is cancelled.
 func startAndServe(ctx context.Context, srv *http.Server, b *bot.Bot) error {
-	defer b.Stop()
+	defer func() { _ = b.Stop() }()
 
 	go func() {
 		<-ctx.Done()
 		log.Println("Shutting down webhook server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		srv.Shutdown(shutdownCtx)
+		_ = srv.Shutdown(shutdownCtx)
 	}()
 
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
@@ -125,7 +125,7 @@ func setupServer(wc webhookConfig, encKey string) (*http.Server, *bot.Bot, error
 
 	h, err := webhook.NewHandler(b, wc.publicKey)
 	if err != nil {
-		b.Stop()
+		_ = b.Stop()
 		return nil, nil, fmt.Errorf("creating webhook handler: %w", err)
 	}
 

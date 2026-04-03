@@ -18,10 +18,10 @@ func clearEnv(t *testing.T, keys ...string) {
 	t.Helper()
 	for _, k := range keys {
 		old := os.Getenv(k)
-		os.Unsetenv(k)
+		_ = os.Unsetenv(k)
 		t.Cleanup(func() {
 			if old != "" {
-				os.Setenv(k, old)
+				_ = os.Setenv(k, old)
 			}
 		})
 	}
@@ -238,7 +238,7 @@ func TestSetupServer_ListenAndShutdown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET failed: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Graceful shutdown.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -284,7 +284,7 @@ func TestStartAndServe(t *testing.T) {
 		// Use Serve on the listener; startAndServe calls ListenAndServe which needs a real addr.
 		// Instead, we'll directly call startAndServe with the srv configured to our listener port.
 		srv.Addr = ln.Addr().String()
-		ln.Close() // free the port so ListenAndServe can bind
+		_ = ln.Close() // free the port so ListenAndServe can bind
 		errCh <- startAndServe(ctx, srv, b)
 	}()
 
@@ -294,7 +294,7 @@ func TestStartAndServe(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 		resp, reqErr := http.Get(addr)
 		if reqErr == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			break
 		}
 	}
@@ -334,7 +334,7 @@ func TestStartAndServe_ListenError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	srv.Addr = ln.Addr().String()
 	ctx := context.Background()
