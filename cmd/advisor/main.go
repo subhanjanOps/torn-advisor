@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
+	"github.com/subhanjanOps/torn-advisor/domain"
 	"github.com/subhanjanOps/torn-advisor/engine"
 	"github.com/subhanjanOps/torn-advisor/providers/torn"
 	"github.com/subhanjanOps/torn-advisor/rules"
@@ -18,33 +20,36 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize SDK client.
 	sdk := client.New(client.Config{
 		APIKey: apiKey,
 	})
 
-	// Create provider and fetch player state.
 	provider := torn.NewProvider(sdk)
-	state, err := provider.FetchPlayerState(context.Background())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error fetching player state: %v\n", err)
+	if err := run(provider, os.Stdout); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+}
 
-	// Run the advisor engine with default rules.
+func run(provider domain.StateProvider, w io.Writer) error {
+	state, err := provider.FetchPlayerState(context.Background())
+	if err != nil {
+		return fmt.Errorf("fetching player state: %w", err)
+	}
+
 	eng := engine.NewEngine(rules.DefaultRules())
 	plan := eng.Run(state)
 
-	// Print the action plan.
 	if len(plan) == 0 {
-		fmt.Println("No actions recommended right now.")
-		return
+		fmt.Fprintln(w, "No actions recommended right now.")
+		return nil
 	}
 
-	fmt.Println("=== Torn Advisor — Action Plan ===")
-	fmt.Println()
+	fmt.Fprintln(w, "=== Torn Advisor — Action Plan ===")
+	fmt.Fprintln(w)
 	for i, action := range plan {
-		fmt.Printf("%d. [%s] %s (priority %d)\n", i+1, action.Category, action.Name, action.Priority)
-		fmt.Printf("   %s\n\n", action.Description)
+		fmt.Fprintf(w, "%d. [%s] %s (priority %d)\n", i+1, action.Category, action.Name, action.Priority)
+		fmt.Fprintf(w, "   %s\n\n", action.Description)
 	}
+	return nil
 }

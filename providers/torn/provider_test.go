@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/subhanjanOps/tornSDK/client"
 	"github.com/subhanjanOps/tornSDK/user"
 )
 
@@ -189,5 +190,13 @@ func TestFetchPlayerState_CooldownsBadJSON(t *testing.T) {
 	_, err := provider.FetchPlayerState(context.Background())
 	if err == nil {
 		t.Fatal("expected error on bad JSON, got nil")
+	}
+}
+
+func TestNewProvider(t *testing.T) {
+	sdk := &client.Client{}
+	provider := NewProvider(sdk)
+	if provider == nil {
+		t.Fatal("expected non-nil provider")
 	}
 }
