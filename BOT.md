@@ -626,7 +626,7 @@ docker run -d \
 </tr>
 <tr>
 <td align="center">🐳</td>
-<td><b>Non-Root Container</b><br>The Docker image runs as <code>appuser</code> (UID 1000) — never as root. Filesystem access is restricted to <code>/data</code>.</td>
+<td><b>Non-Root Container</b><br>The Docker image runs as <code>appuser</code> (UID 1000) — never as root. Application state is stored under <code>/data</code>, with write access intended for that directory.</td>
 </tr>
 <tr>
 <td align="center">🔑</td>
