@@ -156,7 +156,7 @@ func TestSetupServer_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setupServer: %v", err)
 	}
-	defer b.Stop()
+	defer func() { _ = b.Stop() }()
 	if srv == nil {
 		t.Fatal("expected non-nil server")
 	}
@@ -220,7 +220,7 @@ func TestSetupServer_ListenAndShutdown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setupServer: %v", err)
 	}
-	defer b.Stop()
+	defer func() { _ = b.Stop() }()
 
 	// Use a listener so we get an ephemeral port.
 	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")

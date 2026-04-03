@@ -181,7 +181,7 @@ func TestSetupBot_FactoryCreatesProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setupBot: %v", err)
 	}
-	defer b.Stop()
+	defer func() { _ = b.Stop() }()
 
 	// Register a user so the factory can be triggered.
 	if err := ks.Set("u1", "fake-api-key"); err != nil {
