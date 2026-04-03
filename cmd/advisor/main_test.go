@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/subhanjanOps/torn-advisor/config"
 	"github.com/subhanjanOps/torn-advisor/domain"
 )
 
@@ -34,7 +35,7 @@ func TestRun_WithActions(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := run(provider, &buf)
+	err := run(provider, config.DefaultPriorities(), &buf)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,7 +61,7 @@ func TestRun_NoActions(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := run(provider, &buf)
+	err := run(provider, config.DefaultPriorities(), &buf)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -77,7 +78,7 @@ func TestRun_ProviderError(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := run(provider, &buf)
+	err := run(provider, config.DefaultPriorities(), &buf)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

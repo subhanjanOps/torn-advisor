@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/subhanjanOps/torn-advisor/config"
 	"github.com/subhanjanOps/torn-advisor/domain"
 	"github.com/subhanjanOps/torn-advisor/engine"
 	"github.com/subhanjanOps/torn-advisor/providers/torn"
@@ -25,19 +26,30 @@ func main() {
 	})
 
 	provider := torn.NewProvider(sdk)
-	if err := run(provider, os.Stdout); err != nil {
+
+	cfg := config.DefaultPriorities()
+	if path := os.Getenv("ADVISOR_CONFIG"); path != "" {
+		var err error
+		cfg, err = config.LoadPriorities(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to load config %s: %v (using defaults)\n", path, err)
+			cfg = config.DefaultPriorities()
+		}
+	}
+
+	if err := run(provider, cfg, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(provider domain.StateProvider, w io.Writer) error {
+func run(provider domain.StateProvider, cfg config.RulePriorities, w io.Writer) error {
 	state, err := provider.FetchPlayerState(context.Background())
 	if err != nil {
 		return fmt.Errorf("fetching player state: %w", err)
 	}
 
-	eng := engine.NewEngine(rules.DefaultRules())
+	eng := engine.NewEngine(rules.DefaultRulesWithConfig(cfg))
 	plan := eng.Run(state)
 
 	if len(plan) == 0 {

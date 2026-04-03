@@ -3,13 +3,14 @@ package rules
 import (
 	"testing"
 
+	"github.com/subhanjanOps/torn-advisor/config"
 	"github.com/subhanjanOps/torn-advisor/domain"
 )
 
 // --- WarRule ---
 
 func TestWarRule_Active(t *testing.T) {
-	rule := WarRule{}
+	rule := WarRule{Priority: 95}
 	state := domain.PlayerState{WarActive: true}
 	action := rule.Evaluate(state)
 
@@ -25,7 +26,7 @@ func TestWarRule_Active(t *testing.T) {
 }
 
 func TestWarRule_Inactive(t *testing.T) {
-	rule := WarRule{}
+	rule := WarRule{Priority: 95}
 	state := domain.PlayerState{WarActive: false}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil, got %+v", action)
@@ -35,7 +36,7 @@ func TestWarRule_Inactive(t *testing.T) {
 // --- XanaxRule ---
 
 func TestXanaxRule_Ready(t *testing.T) {
-	rule := XanaxRule{}
+	rule := XanaxRule{Priority: 90}
 	state := domain.PlayerState{XanaxCooldown: 0}
 	action := rule.Evaluate(state)
 
@@ -51,7 +52,7 @@ func TestXanaxRule_Ready(t *testing.T) {
 }
 
 func TestXanaxRule_OnCooldown(t *testing.T) {
-	rule := XanaxRule{}
+	rule := XanaxRule{Priority: 90}
 	state := domain.PlayerState{XanaxCooldown: 300}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil, got %+v", action)
@@ -61,7 +62,7 @@ func TestXanaxRule_OnCooldown(t *testing.T) {
 // --- RehabRule ---
 
 func TestRehabRule_HighAddiction(t *testing.T) {
-	rule := RehabRule{}
+	rule := RehabRule{Priority: 85}
 	state := domain.PlayerState{Addiction: 51}
 	action := rule.Evaluate(state)
 
@@ -77,7 +78,7 @@ func TestRehabRule_HighAddiction(t *testing.T) {
 }
 
 func TestRehabRule_AtThreshold(t *testing.T) {
-	rule := RehabRule{}
+	rule := RehabRule{Priority: 85}
 	state := domain.PlayerState{Addiction: 50}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil at threshold, got %+v", action)
@@ -85,7 +86,7 @@ func TestRehabRule_AtThreshold(t *testing.T) {
 }
 
 func TestRehabRule_LowAddiction(t *testing.T) {
-	rule := RehabRule{}
+	rule := RehabRule{Priority: 85}
 	state := domain.PlayerState{Addiction: 10}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil, got %+v", action)
@@ -95,7 +96,7 @@ func TestRehabRule_LowAddiction(t *testing.T) {
 // --- GymRule ---
 
 func TestGymRule_EnergyAndHappy(t *testing.T) {
-	rule := GymRule{}
+	rule := GymRule{Priority: 80}
 	state := domain.PlayerState{Energy: 100, Happy: 5000}
 	action := rule.Evaluate(state)
 
@@ -111,7 +112,7 @@ func TestGymRule_EnergyAndHappy(t *testing.T) {
 }
 
 func TestGymRule_NoEnergy(t *testing.T) {
-	rule := GymRule{}
+	rule := GymRule{Priority: 80}
 	state := domain.PlayerState{Energy: 0, Happy: 5000}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil when no energy, got %+v", action)
@@ -119,7 +120,7 @@ func TestGymRule_NoEnergy(t *testing.T) {
 }
 
 func TestGymRule_LowHappy(t *testing.T) {
-	rule := GymRule{}
+	rule := GymRule{Priority: 80}
 	state := domain.PlayerState{Energy: 100, Happy: 3000}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil when happy too low, got %+v", action)
@@ -127,7 +128,7 @@ func TestGymRule_LowHappy(t *testing.T) {
 }
 
 func TestGymRule_HappyAtThreshold(t *testing.T) {
-	rule := GymRule{}
+	rule := GymRule{Priority: 80}
 	state := domain.PlayerState{Energy: 100, Happy: 4000}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil at happy threshold boundary, got %+v", action)
@@ -137,7 +138,7 @@ func TestGymRule_HappyAtThreshold(t *testing.T) {
 // --- CrimeRule ---
 
 func TestCrimeRule_NerveFull(t *testing.T) {
-	rule := CrimeRule{}
+	rule := CrimeRule{Priority: 70}
 	state := domain.PlayerState{Nerve: 60, NerveMax: 60}
 	action := rule.Evaluate(state)
 
@@ -153,7 +154,7 @@ func TestCrimeRule_NerveFull(t *testing.T) {
 }
 
 func TestCrimeRule_NerveNotFull(t *testing.T) {
-	rule := CrimeRule{}
+	rule := CrimeRule{Priority: 70}
 	state := domain.PlayerState{Nerve: 30, NerveMax: 60}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil, got %+v", action)
@@ -161,7 +162,7 @@ func TestCrimeRule_NerveNotFull(t *testing.T) {
 }
 
 func TestCrimeRule_NerveMaxZero(t *testing.T) {
-	rule := CrimeRule{}
+	rule := CrimeRule{Priority: 70}
 	state := domain.PlayerState{Nerve: 0, NerveMax: 0}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil when NerveMax is 0, got %+v", action)
@@ -171,7 +172,7 @@ func TestCrimeRule_NerveMaxZero(t *testing.T) {
 // --- TravelRule ---
 
 func TestTravelRule_Ready(t *testing.T) {
-	rule := TravelRule{}
+	rule := TravelRule{Priority: 60}
 	state := domain.PlayerState{TravelCooldown: 0}
 	action := rule.Evaluate(state)
 
@@ -187,7 +188,7 @@ func TestTravelRule_Ready(t *testing.T) {
 }
 
 func TestTravelRule_OnCooldown(t *testing.T) {
-	rule := TravelRule{}
+	rule := TravelRule{Priority: 60}
 	state := domain.PlayerState{TravelCooldown: 600}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil, got %+v", action)
@@ -197,7 +198,7 @@ func TestTravelRule_OnCooldown(t *testing.T) {
 // --- HospitalRule ---
 
 func TestHospitalRule_LowLife(t *testing.T) {
-	rule := HospitalRule{}
+	rule := HospitalRule{Priority: 98}
 	state := domain.PlayerState{Life: 2000, LifeMax: 7500}
 	action := rule.Evaluate(state)
 
@@ -213,7 +214,7 @@ func TestHospitalRule_LowLife(t *testing.T) {
 }
 
 func TestHospitalRule_FullLife(t *testing.T) {
-	rule := HospitalRule{}
+	rule := HospitalRule{Priority: 98}
 	state := domain.PlayerState{Life: 7500, LifeMax: 7500}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil at full life, got %+v", action)
@@ -221,7 +222,7 @@ func TestHospitalRule_FullLife(t *testing.T) {
 }
 
 func TestHospitalRule_ExactlyHalf(t *testing.T) {
-	rule := HospitalRule{}
+	rule := HospitalRule{Priority: 98}
 	// LifeMax=100, half=50, Life=50 is NOT < 50, so no action
 	state := domain.PlayerState{Life: 50, LifeMax: 100}
 	if action := rule.Evaluate(state); action != nil {
@@ -230,7 +231,7 @@ func TestHospitalRule_ExactlyHalf(t *testing.T) {
 }
 
 func TestHospitalRule_LifeMaxZero(t *testing.T) {
-	rule := HospitalRule{}
+	rule := HospitalRule{Priority: 98}
 	state := domain.PlayerState{Life: 0, LifeMax: 0}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil when LifeMax is 0, got %+v", action)
@@ -240,7 +241,7 @@ func TestHospitalRule_LifeMaxZero(t *testing.T) {
 // --- BoosterRule ---
 
 func TestBoosterRule_Ready(t *testing.T) {
-	rule := BoosterRule{}
+	rule := BoosterRule{Priority: 55}
 	state := domain.PlayerState{BoosterCooldown: 0}
 	action := rule.Evaluate(state)
 
@@ -256,7 +257,7 @@ func TestBoosterRule_Ready(t *testing.T) {
 }
 
 func TestBoosterRule_OnCooldown(t *testing.T) {
-	rule := BoosterRule{}
+	rule := BoosterRule{Priority: 55}
 	state := domain.PlayerState{BoosterCooldown: 300}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil, got %+v", action)
@@ -266,7 +267,7 @@ func TestBoosterRule_OnCooldown(t *testing.T) {
 // --- ChainRule ---
 
 func TestChainRule_Active(t *testing.T) {
-	rule := ChainRule{}
+	rule := ChainRule{Priority: 97}
 	state := domain.PlayerState{ChainActive: true}
 	action := rule.Evaluate(state)
 
@@ -282,7 +283,7 @@ func TestChainRule_Active(t *testing.T) {
 }
 
 func TestChainRule_Inactive(t *testing.T) {
-	rule := ChainRule{}
+	rule := ChainRule{Priority: 97}
 	state := domain.PlayerState{ChainActive: false}
 	if action := rule.Evaluate(state); action != nil {
 		t.Errorf("expected nil, got %+v", action)
@@ -295,5 +296,26 @@ func TestDefaultRules_Count(t *testing.T) {
 	rules := DefaultRules()
 	if len(rules) != 9 {
 		t.Errorf("expected 9 default rules, got %d", len(rules))
+	}
+}
+
+func TestDefaultRulesWithConfig_CustomPriorities(t *testing.T) {
+	cfg := config.DefaultPriorities()
+	cfg.Gym = 99
+	cfg.Crime = 5
+
+	ruleSet := DefaultRulesWithConfig(cfg)
+	if len(ruleSet) != 9 {
+		t.Fatalf("expected 9 rules, got %d", len(ruleSet))
+	}
+
+	// Verify gym rule got custom priority.
+	state := domain.PlayerState{Energy: 100, Happy: 5000}
+	gymAction := ruleSet[5].Evaluate(state) // Gym is index 5 in the slice
+	if gymAction == nil {
+		t.Fatal("expected gym action")
+	}
+	if gymAction.Priority != 99 {
+		t.Errorf("expected gym priority 99, got %d", gymAction.Priority)
 	}
 }
