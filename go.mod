@@ -2,7 +2,10 @@ module github.com/subhanjanOps/torn-advisor
 
 go 1.25.8
 
-require github.com/subhanjanOps/tornSDK v0.1.0
+require (
+	github.com/bwmarrin/discordgo v0.29.0
+	github.com/subhanjanOps/tornSDK v0.1.0
+)
 
 require (
 	github.com/bwmarrin/discordgo v0.29.0 // indirect
