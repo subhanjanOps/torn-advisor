@@ -15,32 +15,38 @@ import (
 )
 
 func main() {
-	apiKey := os.Getenv("TORN_API_KEY")
-	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "TORN_API_KEY environment variable is required")
+	if err := mainRun(os.Stdout, os.Stderr); err != nil {
 		os.Exit(1)
 	}
+}
 
-	sdk := client.New(client.Config{
-		APIKey: apiKey,
-	})
+// newSDKProvider creates a real tornSDK-backed provider.
+var newSDKProvider = func(apiKey string) domain.StateProvider {
+	sdk := client.New(client.Config{APIKey: apiKey})
+	return torn.NewProvider(sdk)
+}
 
-	provider := torn.NewProvider(sdk)
+// mainRun contains all the logic of main() but returns an error instead of calling os.Exit.
+func mainRun(stdout, stderr io.Writer) error {
+	apiKey := os.Getenv("TORN_API_KEY")
+	if apiKey == "" {
+		_, _ = fmt.Fprintln(stderr, "TORN_API_KEY environment variable is required")
+		return fmt.Errorf("TORN_API_KEY not set")
+	}
+
+	provider := newSDKProvider(apiKey)
 
 	cfg := config.DefaultPriorities()
 	if path := os.Getenv("ADVISOR_CONFIG"); path != "" {
 		var err error
 		cfg, err = config.LoadPriorities(path)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to load config %s: %v (using defaults)\n", path, err)
+			_, _ = fmt.Fprintf(stderr, "Warning: failed to load config %s: %v (using defaults)\n", path, err)
 			cfg = config.DefaultPriorities()
 		}
 	}
 
-	if err := run(provider, cfg, os.Stdout); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	return run(provider, cfg, stdout)
 }
 
 func run(provider domain.StateProvider, cfg config.RulePriorities, w io.Writer) error {

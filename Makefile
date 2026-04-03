@@ -16,11 +16,11 @@ test-verbose:
 	go test ./... -v -count=1
 
 cover:
-	go test ./... -cover -count=1 -coverprofile=coverage.out
+	go test -coverpkg=./... -cover -count=1 -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out
 
 cover-html:
-	go test ./... -cover -count=1 -coverprofile=coverage.out
+	go test -coverpkg=./... -cover -count=1 -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 
 lint:
