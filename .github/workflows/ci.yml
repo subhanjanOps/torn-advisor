@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [master]
+    tags: ["v*"]
   pull_request:
     branches: [master]
 
@@ -27,6 +28,34 @@ jobs:
           go test ./... -count=1 -coverprofile=coverage.out
           go tool cover -func=coverage.out
 
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  coverage-gate:
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Check coverage threshold
+        run: |
+          go test ./... -count=1 -coverprofile=coverage.out
+          TOTAL=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Total coverage: ${TOTAL}%"
+          THRESHOLD=85
+          if [ "$(echo "$TOTAL < $THRESHOLD" | bc -l)" -eq 1 ]; then
+            echo "::error::Coverage ${TOTAL}% is below threshold ${THRESHOLD}%"
+            exit 1
+          fi
+          echo "Coverage ${TOTAL}% meets threshold ${THRESHOLD}%"
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -42,10 +71,54 @@ jobs:
       - name: Run golangci-lint
         run: golangci-lint run --timeout=5m
 
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  build-matrix:
+    runs-on: ubuntu-latest
+    needs: [test, lint, security]
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          go build -o bin/advisor-${GOOS}-${GOARCH}${EXT} ./cmd/advisor/
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: advisor-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: bin/
+
   integration:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: [test, lint]
+    needs: [test, lint, security]
     steps:
       - uses: actions/checkout@v4
 
@@ -57,3 +130,35 @@ jobs:
         env:
           TORN_API_KEY: ${{ secrets.TORN_API_KEY }}
         run: go test ./... -count=1 -tags=integration -run TestIntegration
+
+  release:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, lint, security, coverage-gate]
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          go build -ldflags="-s -w" -o advisor-${GOOS}-${GOARCH}${EXT} ./cmd/advisor/
+          tar czf advisor-${GOOS}-${GOARCH}.tar.gz advisor-${GOOS}-${GOARCH}${EXT}
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: advisor-*.tar.gz
