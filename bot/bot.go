@@ -35,7 +35,10 @@ type Bot struct {
 	scheduleInterval time.Duration
 	scheduleChannels map[string]string // discordUserID -> channelID
 	scheduleMu       sync.RWMutex
-	stopScheduler    chan struct{}
+
+	// Lifecycle.
+	cancel context.CancelFunc
+	ctx    context.Context
 }
 
 // Session abstracts the discord session for testability.
@@ -50,6 +53,7 @@ type Session interface {
 
 // New creates a Bot with the given dependencies.
 func New(session Session, keyStore *store.KeyStore, factory ProviderFactory, cfg config.RulePriorities, cacheTTL time.Duration) *Bot {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Bot{
 		session:          session,
 		keyStore:         keyStore,
@@ -58,7 +62,8 @@ func New(session Session, keyStore *store.KeyStore, factory ProviderFactory, cfg
 		cacheTTL:         cacheTTL,
 		providers:        make(map[string]*cache.Provider),
 		scheduleChannels: make(map[string]string),
-		stopScheduler:    make(chan struct{}),
+		ctx:              ctx,
+		cancel:           cancel,
 	}
 }
 
@@ -125,10 +130,48 @@ func (b *Bot) StartScheduler(interval time.Duration) {
 	go b.schedulerLoop()
 }
 
-// Stop closes the Discord session and stops the scheduler.
+// Stop cancels all in-flight operations and closes the Discord session.
 func (b *Bot) Stop() error {
-	close(b.stopScheduler)
-	return b.session.Close()
+	b.cancel()
+	if b.session != nil {
+		return b.session.Close()
+	}
+	return nil
+}
+
+// HandleInteraction processes a Discord interaction and returns the response.
+// Used by the webhook HTTP handler — does not require an active Discord session.
+func (b *Bot) HandleInteraction(i *discordgo.Interaction) *discordgo.InteractionResponse {
+	if i.Type != discordgo.InteractionApplicationCommand {
+		return nil
+	}
+
+	userID := ""
+	if i.Member != nil {
+		userID = i.Member.User.ID
+	} else if i.User != nil {
+		userID = i.User.ID
+	}
+
+	data := i.ApplicationCommandData()
+	switch data.Name {
+	case "advise":
+		return b.handleAdvise(userID)
+	case "status":
+		return b.handleStatus(userID)
+	case "config":
+		return b.handleConfig()
+	case "register":
+		return b.handleRegister(userID, data.Options)
+	case "unregister":
+		return b.handleUnregister(userID)
+	case "schedule":
+		return b.handleSchedule(userID, i.ChannelID)
+	case "unschedule":
+		return b.handleUnschedule(userID)
+	default:
+		return nil
+	}
 }
 
 func (b *Bot) getProvider(userID string) (domain.StateProvider, error) {
@@ -213,7 +256,7 @@ func (b *Bot) handleAdvise(userID string) *discordgo.InteractionResponse {
 		return errorResponse(err.Error())
 	}
 
-	state, err := provider.FetchPlayerState(context.Background())
+	state, err := provider.FetchPlayerState(b.ctx)
 	if err != nil {
 		return errorResponse(fmt.Sprintf("Failed to fetch player state: %v", err))
 	}
@@ -240,7 +283,7 @@ func (b *Bot) handleStatus(userID string) *discordgo.InteractionResponse {
 		return errorResponse(err.Error())
 	}
 
-	state, err := provider.FetchPlayerState(context.Background())
+	state, err := provider.FetchPlayerState(b.ctx)
 	if err != nil {
 		return errorResponse(fmt.Sprintf("Failed to fetch player state: %v", err))
 	}
@@ -345,7 +388,7 @@ func (b *Bot) schedulerLoop() {
 
 	for {
 		select {
-		case <-b.stopScheduler:
+		case <-b.ctx.Done():
 			return
 		case <-ticker.C:
 			b.runScheduledAdvice()
@@ -373,7 +416,7 @@ func (b *Bot) sendScheduledAdvice(userID, channelID string) {
 		return
 	}
 
-	state, err := provider.FetchPlayerState(context.Background())
+	state, err := provider.FetchPlayerState(b.ctx)
 	if err != nil {
 		log.Printf("scheduler: user %s: fetch error: %v", userID, err)
 		return
@@ -410,7 +453,7 @@ func (b *Bot) sendScheduledAdvice(userID, channelID string) {
 	}
 }
 
-// --- Exported for testing ---
+// --- Exported for testing / webhook ---
 
 // BuildAdviseResponse generates the advise response.
 func (b *Bot) BuildAdviseResponse(userID string) *discordgo.InteractionResponse {

@@ -46,8 +46,10 @@ flowchart LR
     C2 -->|cached state| D[⚙️ Engine]
     D -->|Action Plan| E[🖥️ CLI]
     D -->|Action Plan| G[🤖 Discord Bot]
+    D -->|Action Plan| W[🌐 Webhook Server]
     F[📄 Config JSON] -.->|priorities| D
     H[🔐 Key Store] -.->|per-user keys| G
+    H -.->|per-user keys| W
     style A fill:#e74c3c,color:#fff
     style B fill:#3498db,color:#fff
     style C fill:#2ecc71,color:#fff
@@ -57,6 +59,7 @@ flowchart LR
     style F fill:#95a5a6,color:#fff
     style G fill:#7289da,color:#fff
     style H fill:#e67e22,color:#fff
+    style W fill:#e91e63,color:#fff
 ```
 
 | Layer | Package | Responsibility |
@@ -69,8 +72,10 @@ flowchart LR
 | **Config** | `config/` | Loads rule priorities from JSON (with sensible defaults) |
 | **Key Store** | `store/` | AES-256-GCM encrypted per-user API key storage |
 | **Bot** | `bot/` | Discord bot with slash commands, scheduler, multi-user support |
+| **Webhook** | `webhook/` | HTTP handler for Discord Interactions endpoint (Ed25519 verified) |
 | **CLI** | `cmd/advisor/` | CLI entry point — wires everything, reads env vars, prints output |
-| **Bot Entry** | `cmd/bot/` | Discord bot entry point — connects to Discord, starts scheduler |
+| **Bot Entry** | `cmd/bot/` | Discord bot entry point — connects to Discord gateway, starts scheduler |
+| **Webhook Entry** | `cmd/webhook/` | Webhook server entry point — HTTP server for serverless/cloud deployments |
 
 ### Design Principles
 
@@ -93,8 +98,10 @@ torn-advisor/
 │   ├── advisor/
 │   │   ├── main.go            # CLI entry point
 │   │   └── main_test.go       # CLI tests
-│   └── bot/
-│       └── main.go            # Discord bot entry point
+│   ├── bot/
+│   │   └── main.go            # Discord bot entry point (gateway mode)
+│   └── webhook/
+│       └── main.go            # Webhook server entry point (HTTP mode)
 ├── config/
 │   ├── config.go              # Priority loading from JSON
 │   └── config_test.go         # Config tests
@@ -121,6 +128,9 @@ torn-advisor/
 ├── store/
 │   ├── keystore.go            # 🔐 AES-256-GCM encrypted key store
 │   └── keystore_test.go       # Key store tests
+├── webhook/
+│   ├── handler.go             # 🌐 HTTP handler with Ed25519 signature verification
+│   └── handler_test.go        # Webhook tests
 ├── tests/
 │   └── integration_test.go    # End-to-end test (real API)
 ├── Dockerfile                 # Multi-stage Docker build
@@ -385,12 +395,31 @@ cp .env.example .env
 docker compose up -d
 ```
 
+### Webhook Mode (HTTP Server)
+
+For serverless or cloud deployments, run the bot as an HTTP server that receives Discord interactions via webhook instead of maintaining a persistent gateway connection.
+
+1. In your Discord Application settings, set the **Interactions Endpoint URL** to your server (e.g., `https://your-server.com/`)
+2. Copy the **Public Key** from the application's General Information page
+
+```bash
+export DISCORD_PUBLIC_KEY="your-ed25519-public-key-hex"
+export ENCRYPTION_KEY="your-64-hex-char-key"
+export WEBHOOK_PORT="8080"   # optional, default 8080
+
+go run ./cmd/webhook/
+```
+
+> **Note:** Webhook mode does not support the scheduler (periodic advice). Use gateway mode (`cmd/bot`) if you need scheduled alerts.
+
 ### Environment Variables
 
 | Variable | Required | Description |
 |:---------|:--------:|:------------|
-| `DISCORD_BOT_TOKEN` | ✅ | Discord bot token |
-| `DISCORD_APP_ID` | ✅ | Discord application ID |
+| `DISCORD_BOT_TOKEN` | ✅ (gateway) | Discord bot token |
+| `DISCORD_APP_ID` | ✅ (gateway) | Discord application ID |
+| `DISCORD_PUBLIC_KEY` | ✅ (webhook) | Ed25519 public key from Discord app settings |
+| `WEBHOOK_PORT` | | Webhook server port (default: `8080`) |
 | `ENCRYPTION_KEY` | ✅ | 32-byte hex key for API key encryption |
 | `KEY_STORE_PATH` | | Path to encrypted key file (default: `keys.json`) |
 | `ADVISOR_CONFIG` | | Path to custom priorities JSON |
@@ -404,6 +433,8 @@ docker compose up -d
 - [x] Response caching / rate limiting
 - [x] Scheduled periodic advice
 - [x] Docker containerization
+- [x] Graceful shutdown with context propagation
+- [x] Webhook mode (HTTP server for Discord Interactions)
 - [ ] AI layer for adaptive recommendations
 - [ ] Web dashboard with real-time updates
 - [ ] Battle target selection rule
