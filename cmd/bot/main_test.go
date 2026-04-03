@@ -132,7 +132,7 @@ func TestSetupBot_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setupBot: %v", err)
 	}
-	defer b.Stop()
+	defer func() { _ = b.Stop() }()
 	if ks == nil {
 		t.Fatal("expected non-nil keystore")
 	}
@@ -167,7 +167,7 @@ func TestSetupBot_InvalidToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setupBot with empty token: %v", err)
 	}
-	defer b.Stop()
+	defer func() { _ = b.Stop() }()
 }
 
 func TestSetupBot_FactoryCreatesProvider(t *testing.T) {

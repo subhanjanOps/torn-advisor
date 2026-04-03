@@ -95,7 +95,7 @@ func run() error {
 
 // runBot starts the scheduler, logs status, and waits for context cancellation.
 func runBot(ctx context.Context, b *bot.Bot, ks *store.KeyStore) error {
-	defer b.Stop()
+	defer func() { _ = b.Stop() }()
 	b.StartScheduler(15 * time.Minute)
 
 	log.Printf("Torn Advisor bot is running (%d registered users). Press Ctrl+C to exit.", ks.UserCount())
