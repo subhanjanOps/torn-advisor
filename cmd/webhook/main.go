@@ -25,15 +25,24 @@ func main() {
 	}
 }
 
-func run() error {
+// webhookConfig holds validated webhook configuration.
+type webhookConfig struct {
+	publicKey string
+	storePath string
+	port      string
+	cfg       config.RulePriorities
+}
+
+// parseConfig reads and validates environment variables.
+func parseConfig() (webhookConfig, string, error) {
 	publicKey := os.Getenv("DISCORD_PUBLIC_KEY")
 	if publicKey == "" {
-		return fmt.Errorf("DISCORD_PUBLIC_KEY environment variable is required")
+		return webhookConfig{}, "", fmt.Errorf("DISCORD_PUBLIC_KEY environment variable is required")
 	}
 
 	encKey := os.Getenv("ENCRYPTION_KEY")
 	if encKey == "" {
-		return fmt.Errorf("ENCRYPTION_KEY environment variable is required (64 hex chars = 32 bytes)")
+		return webhookConfig{}, "", fmt.Errorf("ENCRYPTION_KEY environment variable is required (64 hex chars = 32 bytes)")
 	}
 
 	storePath := os.Getenv("KEY_STORE_PATH")
@@ -56,9 +65,55 @@ func run() error {
 		}
 	}
 
-	ks, err := store.NewKeyStore(storePath, encKey)
+	return webhookConfig{
+		publicKey: publicKey,
+		storePath: storePath,
+		port:      port,
+		cfg:       cfg,
+	}, encKey, nil
+}
+
+func run() error {
+	wc, encKey, err := parseConfig()
 	if err != nil {
-		return fmt.Errorf("initializing key store: %w", err)
+		return err
+	}
+
+	srv, b, err := setupServer(wc, encKey)
+	if err != nil {
+		return err
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	log.Printf("Webhook server listening on :%s", wc.port)
+	return startAndServe(ctx, srv, b)
+}
+
+// startAndServe runs the HTTP server and shuts it down when ctx is cancelled.
+func startAndServe(ctx context.Context, srv *http.Server, b *bot.Bot) error {
+	defer b.Stop()
+
+	go func() {
+		<-ctx.Done()
+		log.Println("Shutting down webhook server...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		srv.Shutdown(shutdownCtx)
+	}()
+
+	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+		return fmt.Errorf("server error: %w", err)
+	}
+	return nil
+}
+
+// setupServer creates the keystore, bot, webhook handler, and HTTP server.
+func setupServer(wc webhookConfig, encKey string) (*http.Server, *bot.Bot, error) {
+	ks, err := store.NewKeyStore(wc.storePath, encKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("initializing key store: %w", err)
 	}
 
 	factory := func(apiKey string) domain.StateProvider {
@@ -66,34 +121,19 @@ func run() error {
 		return torn.NewProvider(sdk)
 	}
 
-	// In webhook mode no Discord gateway session is needed.
-	b := bot.New(nil, ks, factory, cfg, 30*time.Second)
-	defer b.Stop()
+	b := bot.New(nil, ks, factory, wc.cfg, 30*time.Second)
 
-	h, err := webhook.NewHandler(b, publicKey)
+	h, err := webhook.NewHandler(b, wc.publicKey)
 	if err != nil {
-		return fmt.Errorf("creating webhook handler: %w", err)
+		b.Stop()
+		return nil, nil, fmt.Errorf("creating webhook handler: %w", err)
 	}
 
 	srv := &http.Server{
-		Addr:              ":" + port,
+		Addr:              ":" + wc.port,
 		Handler:           h,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	go func() {
-		stop := make(chan os.Signal, 1)
-		signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-		<-stop
-		log.Println("Shutting down webhook server...")
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		srv.Shutdown(ctx)
-	}()
-
-	log.Printf("Webhook server listening on :%s", port)
-	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-		return fmt.Errorf("server error: %w", err)
-	}
-	return nil
+	return srv, b, nil
 }

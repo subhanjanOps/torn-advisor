@@ -5,6 +5,8 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -180,4 +182,41 @@ func TestBadJSON(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("got %d, want %d", rec.Code, http.StatusBadRequest)
 	}
+}
+
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, io.ErrUnexpectedEOF }
+
+func TestBodyReadError(t *testing.T) {
+	h, _ := newTestHandler(t, &mockBot{})
+	req := httptest.NewRequest(http.MethodPost, "/", errReader{})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("got %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+type failWriter struct {
+	header http.Header
+}
+
+func (f *failWriter) Header() http.Header       { return f.header }
+func (f *failWriter) WriteHeader(int)           {}
+func (f *failWriter) Write([]byte) (int, error) { return 0, fmt.Errorf("broken pipe") }
+
+func TestWriteJSONError(t *testing.T) {
+	h, priv := newTestHandler(t, &mockBot{})
+	body := []byte(`{"type":1}`)
+	ts := "1609459200"
+	sig := signRequest(priv, ts, body)
+
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
+	req.Header.Set("X-Signature-Ed25519", sig)
+	req.Header.Set("X-Signature-Timestamp", ts)
+
+	fw := &failWriter{header: make(http.Header)}
+	h.ServeHTTP(fw, req) // Should not panic on writeJSON error.
 }

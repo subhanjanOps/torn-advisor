@@ -208,7 +208,7 @@ func (b *Bot) removeProvider(userID string) {
 	delete(b.providers, userID)
 }
 
-func (b *Bot) handleInteraction(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (b *Bot) handleInteraction(_ *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.Type != discordgo.InteractionApplicationCommand {
 		return
 	}
@@ -235,7 +235,7 @@ func (b *Bot) handleInteraction(s *discordgo.Session, i *discordgo.InteractionCr
 		return
 	}
 
-	if err := s.InteractionRespond(i.Interaction, resp); err != nil {
+	if err := b.session.InteractionRespond(i.Interaction, resp); err != nil {
 		log.Printf("responding to interaction: %v", err)
 	}
 }

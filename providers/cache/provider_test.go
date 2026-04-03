@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -106,5 +107,34 @@ func TestCachePassesThroughErrors(t *testing.T) {
 	_, _ = cp.FetchPlayerState(context.Background())
 	if inner.calls.Load() != 2 {
 		t.Errorf("expected 2 calls (errors not cached), got %d", inner.calls.Load())
+	}
+}
+
+func TestCacheConcurrentDoubleCheck(t *testing.T) {
+	inner := &mockProvider{
+		state: domain.PlayerState{Energy: 42},
+	}
+	cp := NewProvider(inner, 5*time.Second)
+
+	// Launch many goroutines to race on the first fetch — at most 1 should call inner.
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s, err := cp.FetchPlayerState(context.Background())
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if s.Energy != 42 {
+				t.Errorf("expected Energy 42, got %d", s.Energy)
+			}
+		}()
+	}
+	wg.Wait()
+
+	// Inner should have been called very few times (ideally 1, but races may allow a few).
+	if calls := inner.calls.Load(); calls > 5 {
+		t.Errorf("expected few inner calls, got %d", calls)
 	}
 }

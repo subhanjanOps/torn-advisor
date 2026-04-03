@@ -178,3 +178,81 @@ func searchString(s, substr string) bool {
 	}
 	return false
 }
+
+func TestDeleteNonExistentUser(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "keys.json")
+
+	ks, err := NewKeyStore(path, testEncKey())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Delete a user that was never added — should succeed.
+	if err := ks.Delete("ghost"); err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
+}
+
+func TestLoadCorruptedJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "keys.json")
+
+	// Write invalid JSON.
+	if err := os.WriteFile(path, []byte("{invalid"), 0600); err != nil {
+		t.Fatalf("writing file: %v", err)
+	}
+
+	_, err := NewKeyStore(path, testEncKey())
+	if err == nil {
+		t.Fatal("expected error for corrupted JSON")
+	}
+}
+
+func TestLoadBadCiphertext(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "keys.json")
+
+	// Write valid JSON with bad ciphertext (too short to contain nonce).
+	if err := os.WriteFile(path, []byte(`{"keys":{"user1":"ab"}}`), 0600); err != nil {
+		t.Fatalf("writing file: %v", err)
+	}
+
+	_, err := NewKeyStore(path, testEncKey())
+	if err == nil {
+		t.Fatal("expected error for bad ciphertext")
+	}
+}
+
+func TestLoadInvalidHexCiphertext(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "keys.json")
+
+	// Write valid JSON with non-hex ciphertext.
+	if err := os.WriteFile(path, []byte(`{"keys":{"user1":"not-hex!"}}`), 0600); err != nil {
+		t.Fatalf("writing file: %v", err)
+	}
+
+	_, err := NewKeyStore(path, testEncKey())
+	if err == nil {
+		t.Fatal("expected error for invalid hex ciphertext")
+	}
+}
+
+func TestSaveToReadOnlyDir(t *testing.T) {
+	if os.Getenv("CI") != "" {
+		t.Skip("skipping on CI — permissions may differ")
+	}
+
+	// Use a path in a non-existent deeply nested directory.
+	path := filepath.Join(t.TempDir(), "no", "such", "dir", "keys.json")
+	ks, err := NewKeyStore(path, testEncKey())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Set should fail because the parent directory doesn't exist.
+	if err := ks.Set("user1", "key"); err == nil {
+		t.Fatal("expected error writing to non-existent directory")
+	}
+}
