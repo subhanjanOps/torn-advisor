@@ -7,6 +7,7 @@ import (
 
 	"github.com/subhanjanOps/torn-advisor/engine"
 	"github.com/subhanjanOps/torn-advisor/providers/torn"
+	"github.com/subhanjanOps/torn-advisor/rules"
 	"github.com/subhanjanOps/tornSDK/client"
 )
 
@@ -31,7 +32,7 @@ func main() {
 	}
 
 	// Run the advisor engine with default rules.
-	eng := engine.NewEngine(engine.DefaultRules())
+	eng := engine.NewEngine(rules.DefaultRules())
 	plan := eng.Run(state)
 
 	// Print the action plan.

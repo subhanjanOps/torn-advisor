@@ -1,4 +1,6 @@
-package engine
+package domain
+
+import "context"
 
 // PlayerState represents the player's current state in Torn City.
 // This struct is the main input to the engine — all rules evaluate against it.
@@ -40,4 +42,17 @@ type Action struct {
 	Description string
 	Priority    int
 	Category    Category
+}
+
+// Rule defines the interface that all advisor rules must implement.
+// Each rule checks a condition against the player state and returns
+// an Action if the condition is met, or nil if not applicable.
+type Rule interface {
+	Evaluate(state PlayerState) *Action
+}
+
+// StateProvider abstracts the data source that supplies player state.
+// The engine depends on this interface rather than any concrete SDK or API.
+type StateProvider interface {
+	FetchPlayerState(ctx context.Context) (PlayerState, error)
 }

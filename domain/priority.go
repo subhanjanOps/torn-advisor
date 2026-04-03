@@ -1,4 +1,4 @@
-package engine
+package domain
 
 // Priority levels for actions.
 const (

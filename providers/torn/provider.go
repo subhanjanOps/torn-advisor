@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/subhanjanOps/torn-advisor/engine"
+	"github.com/subhanjanOps/torn-advisor/domain"
 	"github.com/subhanjanOps/tornSDK/client"
 )
 
 // Provider converts tornSDK data into a PlayerState.
+// It implements the engine.StateProvider interface.
 type Provider struct {
 	sdk *client.Client
 }
@@ -30,8 +31,8 @@ type cooldowns struct {
 }
 
 // FetchPlayerState gathers data from the Torn API and maps it into a PlayerState.
-func (p *Provider) FetchPlayerState(ctx context.Context) (engine.PlayerState, error) {
-	var state engine.PlayerState
+func (p *Provider) FetchPlayerState(ctx context.Context) (domain.PlayerState, error) {
+	var state domain.PlayerState
 
 	// Fetch bars (energy, nerve, happy, life, chain).
 	bars, err := p.sdk.User.GetBars(ctx)

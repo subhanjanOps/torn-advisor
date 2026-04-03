@@ -1,9 +1,13 @@
 package engine
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/subhanjanOps/torn-advisor/domain"
+)
 
 func TestBuildPlan_FiltersNils(t *testing.T) {
-	actions := []*Action{
+	actions := []*domain.Action{
 		nil,
 		{Name: "A", Priority: 50},
 		nil,
@@ -18,7 +22,7 @@ func TestBuildPlan_FiltersNils(t *testing.T) {
 }
 
 func TestBuildPlan_SortsByPriorityDesc(t *testing.T) {
-	actions := []*Action{
+	actions := []*domain.Action{
 		{Name: "Low", Priority: 30},
 		{Name: "High", Priority: 90},
 		{Name: "Mid", Priority: 60},
@@ -47,7 +51,7 @@ func TestBuildPlan_Empty(t *testing.T) {
 }
 
 func TestBuildPlan_AllNils(t *testing.T) {
-	actions := []*Action{nil, nil, nil}
+	actions := []*domain.Action{nil, nil, nil}
 	plan := BuildPlan(actions)
 	if len(plan) != 0 {
 		t.Errorf("expected empty plan from all nils, got %d actions", len(plan))
@@ -55,7 +59,7 @@ func TestBuildPlan_AllNils(t *testing.T) {
 }
 
 func TestBuildPlan_EqualPriority(t *testing.T) {
-	actions := []*Action{
+	actions := []*domain.Action{
 		{Name: "A", Priority: 70},
 		{Name: "B", Priority: 70},
 	}

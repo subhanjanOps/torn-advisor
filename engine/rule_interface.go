@@ -1,8 +1,9 @@
 package engine
 
-// Rule defines the interface that all advisor rules must implement.
-// Each rule checks a condition against the player state and returns
-// an Action if the condition is met, or nil if not applicable.
-type Rule interface {
-	Evaluate(state PlayerState) *Action
-}
+import "github.com/subhanjanOps/torn-advisor/domain"
+
+// Rule is an alias for domain.Rule so callers can use engine.Rule.
+type Rule = domain.Rule
+
+// StateProvider is an alias for domain.StateProvider.
+type StateProvider = domain.StateProvider
