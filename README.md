@@ -42,15 +42,24 @@ $ TORN_API_KEY=xxx go run ./cmd/advisor/
 flowchart LR
     A[🌐 Torn API] -->|HTTP| B[📦 tornSDK]
     B -->|typed data| C[🔌 Provider]
-    C -->|PlayerState| D[⚙️ Engine]
+    C -->|PlayerState| C2[💾 Cache]
+    C2 -->|cached state| D[⚙️ Engine]
     D -->|Action Plan| E[🖥️ CLI]
+    D -->|Action Plan| G[🤖 Discord Bot]
+    D -->|Action Plan| W[🌐 Webhook Server]
     F[📄 Config JSON] -.->|priorities| D
+    H[🔐 Key Store] -.->|per-user keys| G
+    H -.->|per-user keys| W
     style A fill:#e74c3c,color:#fff
     style B fill:#3498db,color:#fff
     style C fill:#2ecc71,color:#fff
+    style C2 fill:#1abc9c,color:#fff
     style D fill:#f39c12,color:#fff
     style E fill:#9b59b6,color:#fff
     style F fill:#95a5a6,color:#fff
+    style G fill:#7289da,color:#fff
+    style H fill:#e67e22,color:#fff
+    style W fill:#e91e63,color:#fff
 ```
 
 | Layer | Package | Responsibility |
@@ -59,8 +68,14 @@ flowchart LR
 | **Engine** | `engine/` | Evaluates rules, builds sorted action plan |
 | **Rules** | `rules/` | 9 individual rule implementations with configurable priorities |
 | **Provider** | `providers/torn/` | Adapts tornSDK to the `StateProvider` interface |
+| **Cache** | `providers/cache/` | TTL-based caching wrapper to reduce Torn API calls |
 | **Config** | `config/` | Loads rule priorities from JSON (with sensible defaults) |
-| **CLI** | `cmd/advisor/` | Wires everything together, reads env vars, prints output |
+| **Key Store** | `store/` | AES-256-GCM encrypted per-user API key storage |
+| **Bot** | `bot/` | Discord bot with slash commands, scheduler, multi-user support |
+| **Webhook** | `webhook/` | HTTP handler for Discord Interactions endpoint (Ed25519 verified) |
+| **CLI** | `cmd/advisor/` | CLI entry point — wires everything, reads env vars, prints output |
+| **Bot Entry** | `cmd/bot/` | Discord bot entry point — connects to Discord gateway, starts scheduler |
+| **Webhook Entry** | `cmd/webhook/` | Webhook server entry point — HTTP server for serverless/cloud deployments |
 
 ### Design Principles
 
@@ -76,9 +91,17 @@ flowchart LR
 torn-advisor/
 ├── .github/workflows/
 │   └── ci.yml                 # GitHub Actions: test, lint, integration
-├── cmd/advisor/
-│   ├── main.go                # CLI entry point
-│   └── main_test.go           # CLI tests
+├── bot/
+│   ├── bot.go                 # 🤖 Discord bot (commands, scheduler, multi-user)
+│   └── bot_test.go            # Bot tests (mocked session + provider)
+├── cmd/
+│   ├── advisor/
+│   │   ├── main.go            # CLI entry point
+│   │   └── main_test.go       # CLI tests
+│   ├── bot/
+│   │   └── main.go            # Discord bot entry point (gateway mode)
+│   └── webhook/
+│       └── main.go            # Webhook server entry point (HTTP mode)
 ├── config/
 │   ├── config.go              # Priority loading from JSON
 │   └── config_test.go         # Config tests
@@ -91,23 +114,29 @@ torn-advisor/
 │   ├── planner.go             # Sort + filter actions
 │   ├── planner_test.go        # Planner tests
 │   └── rule_interface.go      # Type aliases for domain interfaces
-├── providers/torn/
-│   ├── provider.go            # tornSDK → PlayerState adapter
-│   └── provider_test.go       # Provider tests (mocked API)
+├── providers/
+│   ├── cache/
+│   │   ├── provider.go        # 💾 TTL-based caching provider
+│   │   └── provider_test.go   # Cache tests
+│   └── torn/
+│       ├── provider.go        # tornSDK → PlayerState adapter
+│       └── provider_test.go   # Provider tests (mocked API)
 ├── rules/
-│   ├── hospital.go            # 🏥 Heal Up rule
-│   ├── chain.go               # ⛓️ Continue Chain rule
-│   ├── war.go                 # ⚔️ Save Energy for War rule
-│   ├── xanax.go               # 💊 Take Xanax rule
-│   ├── rehab.go               # 🩺 Rehab rule
-│   ├── gym.go                 # 🏋️ Train at Gym rule
-│   ├── crime.go               # 🔫 Do Crimes rule
-│   ├── travel.go              # ✈️ Fly Abroad rule
-│   ├── booster.go             # ⚡ Use Booster rule
+│   ├── hospital.go … booster.go  # 9 individual rule files
 │   ├── defaults.go            # Default rule set factory
 │   └── rules_test.go          # Rule tests
+├── store/
+│   ├── keystore.go            # 🔐 AES-256-GCM encrypted key store
+│   └── keystore_test.go       # Key store tests
+├── webhook/
+│   ├── handler.go             # 🌐 HTTP handler with Ed25519 signature verification
+│   └── handler_test.go        # Webhook tests
 ├── tests/
 │   └── integration_test.go    # End-to-end test (real API)
+├── Dockerfile                 # Multi-stage Docker build
+├── docker-compose.yml         # One-command deployment
+├── .dockerignore
+├── .env.example               # Template environment file
 ├── config.example.json        # Example priorities config
 ├── Makefile                   # Build, test, lint, cover targets
 ├── go.mod
@@ -316,12 +345,98 @@ flowchart TD
 
 ---
 
+## 🤖 Discord Bot
+
+The project includes a full-featured Discord bot that exposes the advisor engine via slash commands.
+
+### Bot Commands
+
+| Command | Description |
+|:--------|:------------|
+| `/register <api_key>` | Store your Torn API key (AES-256-GCM encrypted) |
+| `/unregister` | Remove your stored API key |
+| `/advise` | Get your personalized action plan |
+| `/status` | Show current player stats (energy, nerve, happy, life) |
+| `/config` | Display current rule priority configuration |
+| `/schedule` | Enable periodic urgent-action alerts in the current channel |
+| `/unschedule` | Disable periodic alerts |
+
+### Features
+
+- **Multi-user** — each Discord user registers their own Torn API key
+- **Encrypted storage** — API keys are encrypted at rest with AES-256-GCM
+- **Response caching** — Torn API responses are cached (30s TTL) to avoid rate limits
+- **Scheduled alerts** — every 15 min, posts urgent actions (priority ≥ 90) to opted-in channels
+- **Ephemeral responses** — sensitive commands (register, errors) are only visible to the user
+
+### Setup
+
+1. **Create a Discord Application** at [discord.com/developers](https://discord.com/developers/applications)
+2. Create a Bot user and copy the **Bot Token**
+3. Copy the **Application ID**
+4. Generate an encryption key: `openssl rand -hex 32`
+5. Invite the bot to your server with the `applications.commands` and `bot` scopes
+
+### Run Locally
+
+```bash
+export DISCORD_BOT_TOKEN="your-bot-token"
+export DISCORD_APP_ID="your-app-id"
+export ENCRYPTION_KEY="your-64-hex-char-key"
+
+go run ./cmd/bot/
+```
+
+### Run with Docker
+
+```bash
+cp .env.example .env
+# Edit .env with your values
+docker compose up -d
+```
+
+### Webhook Mode (HTTP Server)
+
+For serverless or cloud deployments, run the bot as an HTTP server that receives Discord interactions via webhook instead of maintaining a persistent gateway connection.
+
+1. In your Discord Application settings, set the **Interactions Endpoint URL** to your server (e.g., `https://your-server.com/`)
+2. Copy the **Public Key** from the application's General Information page
+
+```bash
+export DISCORD_PUBLIC_KEY="your-ed25519-public-key-hex"
+export ENCRYPTION_KEY="your-64-hex-char-key"
+export WEBHOOK_PORT="8080"   # optional, default 8080
+
+go run ./cmd/webhook/
+```
+
+> **Note:** Webhook mode does not support the scheduler (periodic advice). Use gateway mode (`cmd/bot`) if you need scheduled alerts.
+
+### Environment Variables
+
+| Variable | Required | Description |
+|:---------|:--------:|:------------|
+| `DISCORD_BOT_TOKEN` | ✅ (gateway) | Discord bot token |
+| `DISCORD_APP_ID` | ✅ (gateway) | Discord application ID |
+| `DISCORD_PUBLIC_KEY` | ✅ (webhook) | Ed25519 public key from Discord app settings |
+| `WEBHOOK_PORT` | | Webhook server port (default: `8080`) |
+| `ENCRYPTION_KEY` | ✅ | 32-byte hex key for API key encryption |
+| `KEY_STORE_PATH` | | Path to encrypted key file (default: `keys.json`) |
+| `ADVISOR_CONFIG` | | Path to custom priorities JSON |
+
+---
+
 ## 🗺️ Roadmap
 
-- [ ] Discord bot integration
+- [x] Discord bot integration
+- [x] Multi-user support with encrypted key storage
+- [x] Response caching / rate limiting
+- [x] Scheduled periodic advice
+- [x] Docker containerization
+- [x] Graceful shutdown with context propagation
+- [x] Webhook mode (HTTP server for Discord Interactions)
 - [ ] AI layer for adaptive recommendations
 - [ ] Web dashboard with real-time updates
-- [ ] Multi-account support
 - [ ] Battle target selection rule
 - [ ] OC (Organized Crime) timing rule
 - [ ] Company work/train rule

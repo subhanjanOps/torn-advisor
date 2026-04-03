@@ -1,0 +1,22 @@
+# Environment
+.env
+keys.json
+
+# Git
+.git
+.gitignore
+
+# CI/CD
+.github
+
+# IDE
+.vscode
+.idea
+
+# Build artifacts
+bin/
+*.exe
+
+# Tests
+*_test.go
+tests/
