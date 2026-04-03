@@ -2,58 +2,310 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: ["master"]
+    tags: ["v*"]
   pull_request:
-    branches: [master]
+    branches: ["master"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  ai-review:
+    name: AI Code Review
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      HAS_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
 
-      - uses: actions/setup-go@v5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run AI review
+        if: github.event_name == 'pull_request' && env.HAS_OPENAI_API_KEY == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: villesau/ai-codereviewer@v2.7.0
         with:
-          go-version: "1.25"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_MODEL: gpt-4
+          exclude: "**/*.json, **/*.md, coverage.out, coverage.html, coverage-summary.txt"
+
+      - name: Skip AI review
+        if: github.event_name != 'pull_request' || env.HAS_OPENAI_API_KEY != 'true' || github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "Skipping AI review."
+          echo "AI review only runs for pull requests from this repository when OPENAI_API_KEY is configured."
+
+  lint:
+    name: Lint And Vet
+    runs-on: ubuntu-latest
+    needs:
+      - ai-review
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify formatting
+        shell: bash
+        run: |
+          files="$(find . -name '*.go' -not -path './.gocache/*' | sort)"
+          unformatted="$(echo "$files" | xargs gofmt -l)"
+
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          args: ./...
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs:
+      - ai-review
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs:
+      - ai-review
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run unit tests with coverage
+        run: go test -coverpkg=./... -coverprofile coverage.out -count=1 ./...
+
+      - name: Print coverage summary
+        run: go tool cover -func=coverage.out
+
+      - name: Upload coverage profile
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-profile
+          path: coverage.out
+          if-no-files-found: error
+
+  coverage:
+    name: Coverage Gate
+    runs-on: ubuntu-latest
+    needs:
+      - unit-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download coverage profile
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-profile
+          path: .
+
+      - name: Generate coverage report
+        shell: bash
+        run: |
+          go tool cover -func=coverage.out | tee coverage-summary.txt
+          go tool cover -html=coverage.out -o coverage.html
+
+      - name: Enforce total coverage threshold
+        shell: bash
+        run: |
+          total="$(awk '/^total:/ { gsub("%", "", $NF); print $NF }' coverage-summary.txt)"
+
+          if [ -z "$total" ]; then
+            echo "Failed to read total coverage from coverage-summary.txt"
+            exit 1
+          fi
+
+          echo "Total coverage: ${total}%"
+
+          awk -v total="$total" 'BEGIN {
+            if ((total + 0) < 95) {
+              printf("Coverage gate failed: total coverage %.1f%% is below 95%%\n", total + 0)
+              exit 1
+            }
+          }'
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage-summary.txt
+            coverage.html
+          if-no-files-found: error
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs:
+      - lint
+      - unit-tests
+      - coverage
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
 
       - name: Build
         run: go build ./...
 
-      - name: Test
-        run: go test ./... -count=1 -race
-
-      - name: Test coverage
-        run: |
-          go test ./... -count=1 -coverprofile=coverage.out
-          go tool cover -func=coverage.out
-
-  lint:
+  build-matrix:
+    name: Cross-Compile (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
+    needs:
+      - lint
+      - unit-tests
+      - security
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version-file: go.mod
+          cache: true
 
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.2
+      - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          go build -o bin/advisor-${GOOS}-${GOARCH}${EXT} ./cmd/advisor/
 
-      - name: Run golangci-lint
-        run: golangci-lint run --timeout=5m
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: advisor-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: bin/
 
   integration:
+    name: Integration Test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: [test, lint]
-    steps:
-      - uses: actions/checkout@v4
+    needs:
+      - lint
+      - unit-tests
+      - security
 
-      - uses: actions/setup-go@v5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version-file: go.mod
+          cache: true
 
       - name: Integration test
         env:
           TORN_API_KEY: ${{ secrets.TORN_API_KEY }}
         run: go test ./... -count=1 -tags=integration -run TestIntegration
+
+  release:
+    name: Release (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - lint
+      - unit-tests
+      - security
+      - coverage
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          go build -ldflags="-s -w" -o advisor-${GOOS}-${GOARCH}${EXT} ./cmd/advisor/
+          tar czf advisor-${GOOS}-${GOARCH}.tar.gz advisor-${GOOS}-${GOARCH}${EXT}
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: advisor-*.tar.gz
