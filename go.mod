@@ -1,6 +1,6 @@
 module github.com/subhanjanOps/torn-advisor
 
-go 1.25.0
+go 1.25.8
 
 require github.com/subhanjanOps/tornSDK v0.1.0
 
