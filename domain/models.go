@@ -11,6 +11,7 @@ type PlayerState struct {
 	NerveMax        int
 	Happy           int
 	Life            int
+	LifeMax         int
 	XanaxCooldown   int
 	BoosterCooldown int
 	TravelCooldown  int
@@ -28,12 +29,15 @@ type PlayerState struct {
 type Category string
 
 const (
-	CategoryGym    Category = "gym"
-	CategoryCrime  Category = "crime"
-	CategoryTravel Category = "travel"
-	CategoryWar    Category = "war"
-	CategoryRehab  Category = "rehab"
-	CategoryDrug   Category = "drug"
+	CategoryGym      Category = "gym"
+	CategoryCrime    Category = "crime"
+	CategoryTravel   Category = "travel"
+	CategoryWar      Category = "war"
+	CategoryRehab    Category = "rehab"
+	CategoryDrug     Category = "drug"
+	CategoryBooster  Category = "booster"
+	CategoryHospital Category = "hospital"
+	CategoryChain    Category = "chain"
 )
 
 // Action represents a recommended action for the player.

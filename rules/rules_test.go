@@ -194,11 +194,106 @@ func TestTravelRule_OnCooldown(t *testing.T) {
 	}
 }
 
+// --- HospitalRule ---
+
+func TestHospitalRule_LowLife(t *testing.T) {
+	rule := HospitalRule{}
+	state := domain.PlayerState{Life: 2000, LifeMax: 7500}
+	action := rule.Evaluate(state)
+
+	if action == nil {
+		t.Fatal("expected action, got nil")
+	}
+	if action.Priority != 98 {
+		t.Errorf("expected priority 98, got %d", action.Priority)
+	}
+	if action.Category != domain.CategoryHospital {
+		t.Errorf("expected category %q, got %q", domain.CategoryHospital, action.Category)
+	}
+}
+
+func TestHospitalRule_FullLife(t *testing.T) {
+	rule := HospitalRule{}
+	state := domain.PlayerState{Life: 7500, LifeMax: 7500}
+	if action := rule.Evaluate(state); action != nil {
+		t.Errorf("expected nil at full life, got %+v", action)
+	}
+}
+
+func TestHospitalRule_ExactlyHalf(t *testing.T) {
+	rule := HospitalRule{}
+	// LifeMax=100, half=50, Life=50 is NOT < 50, so no action
+	state := domain.PlayerState{Life: 50, LifeMax: 100}
+	if action := rule.Evaluate(state); action != nil {
+		t.Errorf("expected nil at exactly half life, got %+v", action)
+	}
+}
+
+func TestHospitalRule_LifeMaxZero(t *testing.T) {
+	rule := HospitalRule{}
+	state := domain.PlayerState{Life: 0, LifeMax: 0}
+	if action := rule.Evaluate(state); action != nil {
+		t.Errorf("expected nil when LifeMax is 0, got %+v", action)
+	}
+}
+
+// --- BoosterRule ---
+
+func TestBoosterRule_Ready(t *testing.T) {
+	rule := BoosterRule{}
+	state := domain.PlayerState{BoosterCooldown: 0}
+	action := rule.Evaluate(state)
+
+	if action == nil {
+		t.Fatal("expected action, got nil")
+	}
+	if action.Priority != 55 {
+		t.Errorf("expected priority 55, got %d", action.Priority)
+	}
+	if action.Category != domain.CategoryBooster {
+		t.Errorf("expected category %q, got %q", domain.CategoryBooster, action.Category)
+	}
+}
+
+func TestBoosterRule_OnCooldown(t *testing.T) {
+	rule := BoosterRule{}
+	state := domain.PlayerState{BoosterCooldown: 300}
+	if action := rule.Evaluate(state); action != nil {
+		t.Errorf("expected nil, got %+v", action)
+	}
+}
+
+// --- ChainRule ---
+
+func TestChainRule_Active(t *testing.T) {
+	rule := ChainRule{}
+	state := domain.PlayerState{ChainActive: true}
+	action := rule.Evaluate(state)
+
+	if action == nil {
+		t.Fatal("expected action, got nil")
+	}
+	if action.Priority != 97 {
+		t.Errorf("expected priority 97, got %d", action.Priority)
+	}
+	if action.Category != domain.CategoryChain {
+		t.Errorf("expected category %q, got %q", domain.CategoryChain, action.Category)
+	}
+}
+
+func TestChainRule_Inactive(t *testing.T) {
+	rule := ChainRule{}
+	state := domain.PlayerState{ChainActive: false}
+	if action := rule.Evaluate(state); action != nil {
+		t.Errorf("expected nil, got %+v", action)
+	}
+}
+
 // --- DefaultRules ---
 
 func TestDefaultRules_Count(t *testing.T) {
 	rules := DefaultRules()
-	if len(rules) != 6 {
-		t.Errorf("expected 6 default rules, got %d", len(rules))
+	if len(rules) != 9 {
+		t.Errorf("expected 9 default rules, got %d", len(rules))
 	}
 }
