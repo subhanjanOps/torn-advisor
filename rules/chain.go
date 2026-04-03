@@ -7,8 +7,6 @@ type ChainRule struct {
 	Priority int
 }
 
-const chainTimeoutThreshold = 60 // seconds
-
 func (r ChainRule) Evaluate(state domain.PlayerState) *domain.Action {
 	if state.ChainActive {
 		return &domain.Action{

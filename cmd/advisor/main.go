@@ -53,15 +53,15 @@ func run(provider domain.StateProvider, cfg config.RulePriorities, w io.Writer) 
 	plan := eng.Run(state)
 
 	if len(plan) == 0 {
-		fmt.Fprintln(w, "No actions recommended right now.")
+		_, _ = fmt.Fprintln(w, "No actions recommended right now.")
 		return nil
 	}
 
-	fmt.Fprintln(w, "=== Torn Advisor — Action Plan ===")
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, "=== Torn Advisor — Action Plan ===")
+	_, _ = fmt.Fprintln(w)
 	for i, action := range plan {
-		fmt.Fprintf(w, "%d. [%s] %s (priority %d)\n", i+1, action.Category, action.Name, action.Priority)
-		fmt.Fprintf(w, "   %s\n\n", action.Description)
+		_, _ = fmt.Fprintf(w, "%d. [%s] %s (priority %d)\n", i+1, action.Category, action.Name, action.Priority)
+		_, _ = fmt.Fprintf(w, "   %s\n\n", action.Description)
 	}
 	return nil
 }
