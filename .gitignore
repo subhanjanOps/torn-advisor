@@ -27,6 +27,9 @@ go.work.sum
 # env file
 .env
 
+# Encrypted key store
+keys.json
+
 # Editor/IDE
 # .idea/
 # .vscode/

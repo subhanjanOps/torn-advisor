@@ -1,0 +1,16 @@
+services:
+  bot:
+    build: .
+    container_name: torn-advisor-bot
+    restart: unless-stopped
+    environment:
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_APP_ID=${DISCORD_APP_ID}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - KEY_STORE_PATH=/data/keys.json
+      - ADVISOR_CONFIG=${ADVISOR_CONFIG:-}
+    volumes:
+      - bot-data:/data
+
+volumes:
+  bot-data:
